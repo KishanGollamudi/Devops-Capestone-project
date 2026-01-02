@@ -1,32 +1,35 @@
-# Ansible – Application Deployment Automation
+# Ansible – Application Deployment Automation (Dynamic Inventory)
 
 ## 📌 Overview
 
-This Ansible setup is used to **automate Docker-based application deployment** on a remote Docker host as part of a complete CI/CD pipeline.
+This Ansible setup is used to **automate Docker-based application deployment** on AWS EC2 instances as part of a complete **CI/CD pipeline**.
 
-It is triggered **indirectly by Jenkins** (via SSH into the Ansible control node) and performs:
+Instead of a static `inventory.ini`, this project uses **AWS EC2 Dynamic Inventory** to automatically discover target servers using **EC2 tags**.
+
+Ansible is triggered **indirectly by Jenkins** (via SSH into the Ansible Control Node) and performs:
 
 * Docker installation (if required)
 * Pulling the latest Docker image from Docker Hub
 * Stopping and removing old containers
 * Running the updated application container
 
-This follows **Infrastructure as Code (IaC)** best practices.
+This implementation follows **Infrastructure as Code (IaC)** and **cloud-native automation** best practices.
 
 ---
 
 ## 🏗 Architecture Role in CI/CD
 
-**Flow:**
+**Pipeline Flow:**
 
 ```
 GitHub → Jenkins → Docker Hub → Ansible → Docker Host → Application
 ```
 
 * Jenkins builds and pushes the Docker image
-* Jenkins SSHs into Ansible Control Node
-* Ansible deploys the container on Docker Host
-* Application is exposed via Docker Host IP
+* Jenkins SSHs into the Ansible Control Node
+* Ansible dynamically discovers EC2 hosts using AWS tags
+* Ansible deploys the container on the Docker Host
+* Application is exposed via the Docker Host public IP
 
 ---
 
@@ -34,7 +37,8 @@ GitHub → Jenkins → Docker Hub → Ansible → Docker Host → Application
 
 ```
 ansible/
-├── inventory.ini
+├── inventory/
+│   └── aws_ec2.yml
 ├── deploy-app.yml
 ├── jenkins-docker.yml
 ├── roles/
@@ -45,41 +49,67 @@ ansible/
 
 ---
 
-## 📄 inventory.ini
+## 📄 Dynamic Inventory – aws_ec2.yml
 
-Defines target hosts grouped by role.
+This project uses the **AWS EC2 Dynamic Inventory plugin** to discover instances automatically.
 
-```ini
-[jenkins]
-10.0.1.230
+📍 **AWS Region:** `us-east-1`
+📍 **Project Tag:** `Devops-Capestone-project`
 
-[sonarqube]
-10.0.1.67
+```yaml
+# ansible/inventory/aws_ec2.yml
+plugin: amazon.aws.aws_ec2
 
-[nexus]
-10.0.1.62
+regions:
+  - us-east-1
 
-[docker]
-10.0.1.86
+filters:
+  tag:Project: Devops-Capestone-project
+  instance-state-name: running
 
-[all:vars]
-ansible_python_interpreter=/usr/bin/python3
+hostnames:
+  - private-ip-address
+
+keyed_groups:
+  - key: tags.Name
+    prefix: role
+    separator: '_'
+
+  - key: tags.Env
+    prefix: env
+    separator: '_'
+
+  - key: tags.Project
+    prefix: project
+    separator: '_'
+
+compose:
+  ansible_host: private_ip_address
+  ansible_user: ubuntu
+  ansible_python_interpreter: /usr/bin/python3
 ```
+
+### 🧠 Why Dynamic Inventory?
+
+* No hardcoded IP addresses
+* Automatically adapts to Terraform-created infrastructure
+* Targets hosts based on tags like `Name`, `Env`, and `Project`
+* Scales easily as infrastructure grows
 
 ---
 
 ## 📄 deploy-app.yml
 
-Deploys the application container on the Docker host.
+Deploys the OnlineBookStore application container on the **Docker Host**, discovered dynamically.
 
 ```yaml
 ---
 - name: Deploy OnlineBookStore Application
-  hosts: docker
+  hosts: role_docker
   become: yes
 
   tasks:
-    - name: Pull latest Docker image
+    - name: Deploy application container
       docker_container:
         name: onlinebookstore
         image: kishangollamudi/onlinebookstore:latest
@@ -94,12 +124,12 @@ Deploys the application container on the Docker host.
 
 ## 📄 jenkins-docker.yml
 
-Installs and configures Docker on the Jenkins server using Ansible.
+Installs and configures Docker on the **Jenkins EC2 instance** using dynamic inventory.
 
 ```yaml
 ---
 - name: Install Docker on Jenkins server
-  hosts: jenkins
+  hosts: role_jenkins
   become: yes
   roles:
     - docker
@@ -109,7 +139,7 @@ Installs and configures Docker on the Jenkins server using Ansible.
 
 ## 📄 roles/docker/tasks/main.yml
 
-Installs Docker and configures permissions.
+Reusable Docker installation role used across multiple servers.
 
 ```yaml
 ---
@@ -155,9 +185,9 @@ Installs Docker and configures permissions.
 
 ---
 
-## 🔐 SSH Prerequisites
+## 🔐 SSH Prerequisites (Jenkins → Ansible)
 
-From **Jenkins server**, passwordless SSH must work:
+From the **Jenkins server**, passwordless SSH access to the Ansible Control Node must be configured:
 
 ```bash
 sudo -u jenkins ssh ubuntu@<ANSIBLE_CONTROL_IP>
@@ -174,17 +204,23 @@ sudo -u jenkins ssh-copy-id ubuntu@<ANSIBLE_CONTROL_IP>
 
 ## ▶️ How to Run Manually (Optional)
 
-From Ansible Control Node:
+From the Ansible Control Node:
 
 ```bash
-ansible-playbook -i inventory.ini deploy-app.yml
+ansible-playbook -i inventory/aws_ec2.yml deploy-app.yml
+```
+
+Validate dynamic inventory:
+
+```bash
+ansible-inventory -i inventory/aws_ec2.yml --graph
 ```
 
 ---
 
 ## 🌐 Application Access
 
-After deployment, the application is accessible via:
+Once deployment is complete, the application is available at:
 
 ```
 http://<DOCKER_HOST_PUBLIC_IP>:8081
@@ -195,16 +231,20 @@ http://<DOCKER_HOST_PUBLIC_IP>:8081
 ## ✅ Key DevOps Concepts Demonstrated
 
 * Infrastructure as Code (IaC)
+* AWS EC2 Dynamic Inventory
 * Configuration Management with Ansible
 * Dockerized application deployment
 * Jenkins → Ansible integration
-* Zero-downtime container redeployment
+* Tag-based host targeting
 * Secure SSH-based automation
+* Zero-downtime container redeployment
 
 ---
 
 ## 📌 Notes
 
+* No static IPs or inventories are used
+* Infrastructure is discovered dynamically from AWS
 * No secrets are hardcoded
 * Credentials are managed in Jenkins
 * Ansible is used strictly for deployment automation
