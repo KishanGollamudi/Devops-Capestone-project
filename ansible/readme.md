@@ -209,14 +209,3 @@ http://<DOCKER_HOST_PUBLIC_IP>:8081
 * Credentials are managed in Jenkins
 * Ansible is used strictly for deployment automation
 * Jenkins does **not** install software directly
-
----
-
-If you want, next I can:
-
-* Merge this into a **main project README**
-* Create **architecture.md**
-* Write **resume bullet points**
-* Prepare **interview explanation script**
-
-Just tell me 👍
