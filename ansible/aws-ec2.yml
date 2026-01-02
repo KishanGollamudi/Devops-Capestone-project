@@ -1,0 +1,36 @@
+
+# /etc/ansible/aws_ec2.yml
+plugin: amazon.aws.aws_ec2
+
+regions:
+  - ap-south-1
+
+# Filter only your 4 servers by project + env
+filters:
+  tag:Project: deepak-devops
+  tag:Env: dev
+  instance-state-name: running
+
+# Use PUBLIC IP as inventory name (change to private-ip-address if needed)
+hostnames:
+  - ip-address
+
+# Create dynamic groups from tags so you can target by Name/Env/Project/Owner
+keyed_groups:
+  - key: tags.Name
+    prefix: role
+    separator: '_'
+  - key: tags.Env
+    prefix: env
+    separator: '_'
+  - key: tags.Project
+    prefix: project
+    separator: '_'
+  - key: tags.Owner
+    prefix: owner
+    separator: '_'
+
+# Helpful host variables
+compose:
+  ansible_host: public_ip_address
+  ansible_user: ubuntu
