@@ -3,11 +3,11 @@
 plugin: amazon.aws.aws_ec2
 
 regions:
-  - ap-south-1
+  - us-east-1
 
 # Filter only your 4 servers by project + env
 filters:
-  tag:Project: deepak-devops
+  tag:Project: kishan-devops
   tag:Env: dev
   instance-state-name: running
 
